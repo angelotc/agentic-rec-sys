@@ -9,7 +9,7 @@ export default worker;
 
 const NIPPONHOMES_API_BASE_URL =
 	process.env.NIPPONHOMES_API_BASE_URL ?? "https://nipponhomes.com";
-const NIPPONHOMES_LISTINGS_LIMIT = 50;
+const NIPPONHOMES_LISTINGS_LIMIT = 100;
 
 type ListingCategory = "new_listing" | "price_drop";
 
@@ -117,7 +117,7 @@ const nipponhomesApi = worker.pacer("nipponhomesApi", {
 worker.sync("nipponhomesListingsSync", {
 	database: nipponhomesListings,
 	mode: "replace",
-	schedule: "30m",
+	schedule: "24h",
 	execute: async (state: ListingsState | undefined) => {
 		const endpointIndex = state?.endpointIndex ?? 0;
 		const endpoint = listingEndpoints[endpointIndex] ?? listingEndpoints[0];
