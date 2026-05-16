@@ -11,7 +11,7 @@ const NIPPONHOMES_API_BASE_URL =
 	process.env.NIPPONHOMES_API_BASE_URL ?? "https://nipponhomes.com";
 const NIPPONHOMES_LISTINGS_LIMIT = 100;
 
-type ListingCategory = "new_listing" | "price_drop";
+type ListingCategory = "new_listing" | "price_drop" | "favorite";
 
 type ListingsState = {
 	endpointIndex: number;
@@ -29,6 +29,10 @@ type NipponhomesListing = {
 	previous_price_usd?: number | null;
 	change_amount_usd?: number | null;
 	change_percentage?: string | number | null;
+	event_at?: string | null;
+	saved_at?: string | null;
+	notes?: string | null;
+	tags?: string | null;
 	price_changed_at?: string | null;
 	first_seen?: string | null;
 	scraped_at?: string | null;
@@ -69,7 +73,7 @@ const listingEndpoints: Array<{
 	{ category: "price_drop", path: "/api/listings/price-drops" },
 ];
 
-const nipponhomesListings = worker.database("nipponhomesListings", {
+const nipponhomesListings = worker.database("nipponhomesListingsV2", {
 	type: "managed",
 	initialTitle: "Nipponhomes Listings",
 	primaryKeyProperty: "Sync Key",
@@ -81,6 +85,7 @@ const nipponhomesListings = worker.database("nipponhomesListings", {
 			"Category": Schema.select([
 				{ name: "new_listing", color: "green" },
 				{ name: "price_drop", color: "red" },
+				{ name: "favorite", color: "yellow" },
 			]),
 			"Listing URL": Schema.url(),
 			"Price": Schema.number("yen"),
@@ -114,7 +119,7 @@ const nipponhomesApi = worker.pacer("nipponhomesApi", {
 	intervalMs: 1000,
 });
 
-worker.sync("nipponhomesListingsSync", {
+worker.sync("nipponhomesListingsSyncV2", {
 	database: nipponhomesListings,
 	mode: "replace",
 	schedule: "24h",
@@ -161,21 +166,55 @@ worker.sync("nipponhomesListingsSync", {
 	},
 });
 
+worker.tool("getNipponhomesFavorites", {
+	title: "Get Nipponhomes Favorites",
+	description:
+		"Fetch the latest favorite listings for a Nipponhomes user from the partner API.",
+	schema: j.object({
+		userUuid: j
+			.string()
+			.describe("The Nipponhomes user UUID to fetch favorite listings for."),
+	}),
+	execute: async ({ userUuid }) => fetchNipponhomesFavorites(userUuid, 50),
+});
+
 async function fetchNipponhomesListings(
 	path: string,
 	offset: number,
 	limit: number,
+): Promise<NipponhomesListingsResponse> {
+	const url = new URL(path, NIPPONHOMES_API_BASE_URL);
+	url.searchParams.set("limit", limit.toString());
+	url.searchParams.set("offset", offset.toString());
+
+	return fetchNipponhomesApi(url, { waitForPacer: true });
+}
+
+async function fetchNipponhomesFavorites(
+	userUuid: string,
+	limit: number,
+): Promise<NipponhomesListingsResponse> {
+	const url = new URL(
+		`/api/listings/favorites/${encodeURIComponent(userUuid)}`,
+		NIPPONHOMES_API_BASE_URL,
+	);
+	url.searchParams.set("limit", limit.toString());
+
+	return fetchNipponhomesApi(url);
+}
+
+async function fetchNipponhomesApi(
+	url: URL,
+	options: { waitForPacer?: boolean } = {},
 ): Promise<NipponhomesListingsResponse> {
 	const apiKey = process.env.NIPPONHOMES_API_KEY;
 	if (!apiKey) {
 		throw new Error("NIPPONHOMES_API_KEY must be set");
 	}
 
-	const url = new URL(path, NIPPONHOMES_API_BASE_URL);
-	url.searchParams.set("limit", limit.toString());
-	url.searchParams.set("offset", offset.toString());
-
-	await nipponhomesApi.wait();
+	if (options.waitForPacer) {
+		await nipponhomesApi.wait();
+	}
 	const response = await fetch(url, {
 		headers: {
 			"x-api-key": apiKey,
@@ -235,6 +274,10 @@ function listingPageContent(listing: NipponhomesListing): string {
 	const lines = [
 		`Category: ${listingCategory(listing)}`,
 		`Source: ${stringValue(listing.listing_url) ?? "N/A"}`,
+		`Event at: ${stringValue(listing.event_at) ?? "N/A"}`,
+		`Saved at: ${stringValue(listing.saved_at) ?? "N/A"}`,
+		`Notes: ${stringValue(listing.notes) ?? "N/A"}`,
+		`Tags: ${stringValue(listing.tags) ?? "N/A"}`,
 		`Price: ${stringValue(listing.price) ?? "N/A"}`,
 		`Previous price: ${stringValue(listing.previous_price) ?? "N/A"}`,
 		`Price USD: ${stringValue(listing.price_usd) ?? "N/A"}`,
@@ -256,7 +299,15 @@ function listingKey(listing: NipponhomesListing): string {
 }
 
 function listingCategory(listing: NipponhomesListing): ListingCategory {
-	return listing.category === "price_drop" ? "price_drop" : "new_listing";
+	if (listing.category === "price_drop") {
+		return "price_drop";
+	}
+
+	if (listing.category === "favorite") {
+		return "favorite";
+	}
+
+	return "new_listing";
 }
 
 function imageUrls(listing: NipponhomesListing): string[] {

@@ -134,7 +134,42 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/listings/price-drops?limit=50&offset=50" 
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 4. Aggregate Location Insights
+### 4. Favorite Listings For A User
+
+Returns the same feed-style listing schema, with `category: "favorite"` and favorite-specific metadata.
+
+```http
+GET /api/listings/favorites/USER_UUID?limit=50
+```
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$env:NIPPONHOMES_API_BASE_URL/api/listings/favorites/USER_UUID?limit=50" `
+  -Headers @{ "x-api-key" = $env:NIPPONHOMES_API_KEY } |
+  ConvertTo-Json -Depth 10
+```
+
+Each favorite listing has:
+
+```ts
+category: "favorite"
+event_at: string
+saved_at: string
+notes: string | null
+tags: string | null
+price_usd: number | null
+previous_price_usd: number | null
+change_amount_usd: number | null
+images: string[]
+```
+
+The worker exposes this as a tool capability:
+
+```shell
+ntn workers exec getNipponhomesFavorites --local -d '{"userUuid":"USER_UUID"}'
+```
+
+### 5. Aggregate Location Insights
 
 ```http
 GET /api/location-insights/by-location?lat=35.6895&lng=139.6917
@@ -145,7 +180,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/location-insights/by-location?lat=35.6895
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 5. Market Analytics By Location
+### 6. Market Analytics By Location
 
 ```http
 GET /api/analytics/by-location?lat=35.6895&lng=139.6917&listing_type=House
@@ -156,7 +191,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/analytics/by-location?lat=35.6895&lng=139
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 6. Market Analytics By JIS Code
+### 7. Market Analytics By JIS Code
 
 ```http
 GET /api/analytics/by-jis?jis_code=13104
@@ -167,7 +202,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/analytics/by-jis?jis_code=13104" \
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 7. Market Analytics Map Overlay
+### 8. Market Analytics Map Overlay
 
 ```http
 GET /api/analytics/ordinance?minLat=35.60&maxLat=35.75&minLng=139.60&maxLng=139.85
@@ -178,7 +213,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/analytics/ordinance?minLat=35.60&maxLat=3
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 8. Airbnb Market By Location
+### 9. Airbnb Market By Location
 
 ```http
 GET /api/airbnb-insights/markets/by-location?lat=35.6895&lng=139.6917
@@ -189,7 +224,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/airbnb-insights/markets/by-location?lat=3
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 9. Airbnb Market Map Overlay
+### 10. Airbnb Market Map Overlay
 
 ```http
 GET /api/airbnb-insights/markets?minLat=35.60&maxLat=35.75&minLng=139.60&maxLng=139.85
@@ -200,7 +235,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/airbnb-insights/markets?minLat=35.60&maxL
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 10. Market Comparables
+### 11. Market Comparables
 
 ```http
 GET /api/comparables?listingId=LISTING_ID
@@ -213,7 +248,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/comparables?listingId=LISTING_ID" \
 
 ## Already Protected By The Same Partner API Key
 
-### 11. Listing Details
+### 12. Listing Details
 
 ```http
 GET /api/listings/LISTING_ID
@@ -224,7 +259,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/listings/LISTING_ID" \
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 12. Nearby Listings
+### 13. Nearby Listings
 
 ```http
 GET /api/listings/nearby?lat=35.6895&lng=139.6917&limit=20
