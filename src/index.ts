@@ -65,6 +65,31 @@ type NipponhomesListingsResponse = {
 	};
 };
 
+type NipponhomesComparablesGuidanceResponse = {
+	listing: {
+		listing_id: string;
+		title: string | null;
+		listing_type: string | null;
+		listing_type_en: string | null;
+		price_jpy: number;
+		price: number;
+		currency: string;
+		effective_size_sqm: number;
+		effective_size_sqft: number;
+		price_per_sqft_jpy: number;
+		price_per_sqft: number;
+	};
+	comparables: Array<{
+		radius_km: 1 | 2;
+		count: number;
+		active_count: number;
+		avg_price_per_sqft: number | null;
+		median_price_per_sqft: number | null;
+		min_price_per_sqft: number | null;
+		max_price_per_sqft: number | null;
+	}>;
+};
+
 const listingEndpoints: Array<{
 	category: ListingCategory;
 	path: string;
@@ -178,6 +203,23 @@ worker.tool("getNipponhomesFavorites", {
 	execute: async ({ userUuid }) => fetchNipponhomesFavorites(userUuid, 50),
 });
 
+worker.tool("getNipponhomesComparablesGuidance", {
+	title: "Get Nipponhomes Comparables Guidance",
+	description:
+		"Fetch price per square foot guidance for a listing, including nearby comparable summaries within 1 km and 2 km.",
+	schema: j.object({
+		listingId: j
+			.string()
+			.describe("The Nipponhomes listing ID to analyze, for example 20825920."),
+		currency: j
+			.string()
+			.describe("Currency code for converted values. Defaults to USD.")
+			.nullable(),
+	}),
+	execute: async ({ listingId, currency }) =>
+		fetchNipponhomesComparablesGuidance(listingId, currency ?? "USD"),
+});
+
 async function fetchNipponhomesListings(
 	path: string,
 	offset: number,
@@ -203,10 +245,23 @@ async function fetchNipponhomesFavorites(
 	return fetchNipponhomesApi(url);
 }
 
-async function fetchNipponhomesApi(
+async function fetchNipponhomesComparablesGuidance(
+	listingId: string,
+	currency: string,
+): Promise<NipponhomesComparablesGuidanceResponse> {
+	const url = new URL(
+		`/api/listings/${encodeURIComponent(listingId)}/price-per-sqft`,
+		NIPPONHOMES_API_BASE_URL,
+	);
+	url.searchParams.set("currency", currency);
+
+	return fetchNipponhomesApi(url);
+}
+
+async function fetchNipponhomesApi<TResponse = NipponhomesListingsResponse>(
 	url: URL,
 	options: { waitForPacer?: boolean } = {},
-): Promise<NipponhomesListingsResponse> {
+): Promise<TResponse> {
 	const apiKey = process.env.NIPPONHOMES_API_KEY;
 	if (!apiKey) {
 		throw new Error("NIPPONHOMES_API_KEY must be set");
@@ -227,7 +282,7 @@ async function fetchNipponhomesApi(
 		);
 	}
 
-	return (await response.json()) as NipponhomesListingsResponse;
+	return (await response.json()) as TResponse;
 }
 
 function toListingProperties(listing: NipponhomesListing) {
@@ -401,14 +456,3 @@ function normalizeDateTime(value: unknown): string | undefined {
 
 	return Number.isNaN(Date.parse(withTimezone)) ? undefined : withTimezone;
 }
-
-// Example agent tool that returns a greeting
-// Delete this when you're ready to start building your own tools.
-worker.tool("sayHello", {
-	title: "Say Hello",
-	description: "Returns a friendly greeting for the given name.",
-	schema: j.object({
-		name: j.string().describe("The name to greet."),
-	}),
-	execute: ({ name }) => `Hello, ${name}!`,
-});
