@@ -46,6 +46,153 @@ It calls:
 /api/listings/favorites/{userUuid}?limit=50
 ```
 
+Verified example user UUID:
+
+```text
+0e95e453-e4af-43c4-a692-617e2f826d3c
+```
+
+The API returned `HTTP 200` for this user with 8 favorite listings, `hasMore: false`, and `meta.category: "favorite"`. The response includes listing fields such as `listing_id`, `category`, `event_at`, `saved_at`, `notes`, `tags`, `title`, `price`, `price_usd`, location fields, listing type fields, `listing_url`, coordinates, S3 metadata, and generated CloudFront image URLs.
+
+Abbreviated response shape from the verified call:
+
+```json
+{
+	"listings": [
+		{
+			"listing_id": "01463880002800",
+			"category": "favorite",
+			"event_at": "2026-05-16 20:33:39.609537",
+			"saved_at": "2026-05-16 20:33:39.609537",
+			"title_english": "Daigo Minamihata Yamacho, Fushimi Ward",
+			"price": "17800000.00",
+			"price_usd": 112164.53,
+			"location_english": "Daigo Minamihata Yamacho, Fushimi Ward, Kyoto City, Kyoto Prefecture",
+			"listing_type_en": "Used Detached House",
+			"listing_url": "https://myhome.nifty.com/chuko-ikkodate/kyoto/kyotoshifushimiku_ct/homesf_01463880002800/",
+			"lat": 34.940594,
+			"lng": 135.81966,
+			"s3_bucket_name": "listings-pictures333221",
+			"s3_key": "01463880002800/34abd40e25bcb08f2394b7a1cbf9c7c1.php",
+			"images": ["https://d26mcwbu6amef4.cloudfront.net/..."],
+			"...": "additional listing metadata omitted"
+		},
+		{
+			"listing_id": "01523210000449",
+			"category": "favorite",
+			"event_at": "2026-05-16 20:33:37.767086",
+			"saved_at": "2026-05-16 20:33:37.767086",
+			"title_english": "Used Detached House Motomiya 2",
+			"price": "34800000.00",
+			"price_usd": 219287.96,
+			"image_count": 30,
+			"...": "additional listing metadata omitted"
+		}
+	],
+	"hasMore": false,
+	"meta": {
+		"category": "favorite",
+		"userUuid": "0e95e453-e4af-43c4-a692-617e2f826d3c",
+		"usdRate": 158.695446,
+		"limit": 50,
+		"offset": 0,
+		"generatedAt": "2026-05-17T18:53:29.943Z"
+	}
+}
+```
+
+#### `getNipponhomesComparablesGuidance`
+
+Tool that fetches price-per-square-foot guidance for a listing, including nearby comparable summaries within 1 km and 2 km.
+
+Input:
+
+```json
+{
+	"listingId": "LISTING_ID",
+	"currency": "USD"
+}
+```
+
+`currency` is nullable in the tool input and defaults to `USD`.
+
+It calls the price-per-square-foot guidance endpoint used in `src/index.ts`:
+
+```text
+/api/listings/{listingId}/price-per-sqft?currency=USD
+```
+
+Verified example listing ID:
+
+```text
+20865820
+```
+
+The API returned `HTTP 200` for this listing. The listing was priced at `$408.17/sq ft`, while the 1 km comparable median was `$235.49/sq ft` and the 2 km comparable median was `$224.40/sq ft`.
+
+Abbreviated response shape from the verified call:
+
+```json
+{
+	"listing": {
+		"listing_id": "20865820",
+		"title": "【SUUMO】海老江８（淀川駅） | 中古住宅・中古一戸建て物件情報",
+		"listing_type_en": "Used Detached House",
+		"price_jpy": 68900000,
+		"price": 434164.95,
+		"currency": "USD",
+		"effective_size_sqm": 98.82,
+		"effective_size_sqft": 1063.7,
+		"price_per_sqft_jpy": 64773.99,
+		"price_per_sqft": 408.17
+	},
+	"comparables": [
+		{
+			"radius_km": 1,
+			"count": 180,
+			"active_count": 26,
+			"avg_price_per_sqft": 235.34,
+			"median_price_per_sqft": 235.49,
+			"min_price_per_sqft": 41.41,
+			"max_price_per_sqft": 607.49,
+			"pricing_guidance": {
+				"status": "above_market",
+				"benchmark": "median",
+				"benchmark_price_per_sqft": 235.49,
+				"premium_percent": 73.3,
+				"suggested_lowball_percent": 42.3,
+				"message": "This listing is above the 1 km comparable median; you can lowball up to 42.3% to match local comps."
+			}
+		},
+		{
+			"radius_km": 2,
+			"count": 868,
+			"active_count": 141,
+			"avg_price_per_sqft": 260.25,
+			"median_price_per_sqft": 224.4,
+			"min_price_per_sqft": 9.74,
+			"max_price_per_sqft": 1343.02,
+			"pricing_guidance": {
+				"status": "above_market",
+				"benchmark": "median",
+				"benchmark_price_per_sqft": 224.4,
+				"premium_percent": 81.9,
+				"suggested_lowball_percent": 45,
+				"message": "This listing is above the 2 km comparable median; you can lowball up to 45% to match local comps."
+			}
+		}
+	],
+	"meta": {
+		"currency": "USD",
+		"jpyRate": 158.695446,
+		"radiiKm": [1, 2],
+		"sampleCount": 868,
+		"searchStrategy": "lat_lng_bounding_box_with_exact_distance",
+		"generatedAt": "2026-05-17T18:52:07.594Z"
+	}
+}
+```
+
 ## Synced Database
 
 The worker creates a managed Notion database named `Nipponhomes Listings` with primary key property `Sync Key`.
@@ -144,6 +291,24 @@ Run the favorites tool locally:
 
 ```shell
 ntn workers exec getNipponhomesFavorites --local -d '{"userUuid":"USER_UUID"}'
+```
+
+Run the verified favorites example locally:
+
+```shell
+ntn workers exec getNipponhomesFavorites --local -d '{"userUuid":"0e95e453-e4af-43c4-a692-617e2f826d3c"}'
+```
+
+Run the comparables guidance tool locally:
+
+```shell
+ntn workers exec getNipponhomesComparablesGuidance --local -d '{"listingId":"LISTING_ID","currency":"USD"}'
+```
+
+Run the verified comparables guidance example locally:
+
+```shell
+ntn workers exec getNipponhomesComparablesGuidance --local -d '{"listingId":"20865820","currency":"USD"}'
 ```
 
 ## Deployment
