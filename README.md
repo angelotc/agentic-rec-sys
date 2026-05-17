@@ -4,7 +4,9 @@ Notion Worker for syncing Nipponhomes property listings into a managed Notion da
 
 ## Capabilities
 
-### `nipponhomesListingsSyncV2`
+### Workers
+
+#### `nipponhomesListingsSyncV2` sync worker
 
 Scheduled replace sync that writes Nipponhomes listing data into the managed `nipponhomesListingsV2` database.
 
@@ -24,9 +26,11 @@ The sync paginates each endpoint with `limit` and `offset`, then moves to the ne
 
 This keeps the same listing distinct when it appears in multiple categories such as `new_listing` and `price_drop`.
 
-### `getNipponhomesFavorites`
+### Tools
 
-Tool that fetches up to 50 favorite listings for a Nipponhomes user.
+#### `getNipponhomesFavorites`
+
+Tool that fetches up to 50 favorite listings for a Nipponhomes user by UUID.
 
 Input:
 
@@ -40,18 +44,6 @@ It calls:
 
 ```text
 /api/listings/favorites/{userUuid}?limit=50
-```
-
-### `sayHello`
-
-Template greeting tool retained in `src/index.ts`.
-
-Input:
-
-```json
-{
-	"name": "World"
-}
 ```
 
 ## Synced Database
@@ -152,12 +144,6 @@ Run the favorites tool locally:
 
 ```shell
 ntn workers exec getNipponhomesFavorites --local -d '{"userUuid":"USER_UUID"}'
-```
-
-Run the greeting tool locally:
-
-```shell
-ntn workers exec sayHello --local -d '{"name":"World"}'
 ```
 
 ## Deployment
