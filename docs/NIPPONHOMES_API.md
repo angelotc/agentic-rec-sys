@@ -35,7 +35,7 @@ $env:NIPPONHOMES_API_BASE_URL = "https://nipponhomes.com"
 
 ### 1. Combined Recent Listing Activity From The Last 24 Hours
 
-Returns both new listings and price drops with the same fields. Use `category` to distinguish rows and `event_at` for the activity timestamp.
+Returns both new listings and price drops with the same fields. Use `category` to distinguish rows and `event_at` for the activity timestamp. Price drops only include listings discounted by more than 8%.
 
 ```http
 GET /api/listings/recent-activity?limit=50
@@ -55,8 +55,11 @@ event_at: string
 title: string | null
 title_english: string | null
 price: string | null
+price_usd: number | null
 previous_price: string | null
+previous_price_usd: number | null
 change_amount: string | null
+change_amount_usd: number | null
 change_percentage: string | null
 price_changed_at: string | null
 first_seen: string | null
@@ -74,12 +77,16 @@ lng: number | null
 images: string[] // generated CloudFront URLs
 ```
 
+USD fields are derived from the latest `USD` row in the `exchange_rates` table. JPY fields stay unchanged.
+
 Pagination:
 
 ```bash
 curl -s "$NIPPONHOMES_API_BASE_URL/api/listings/recent-activity?limit=50&offset=50" \
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
+
+Use `offset` for subsequent pages.
 
 ### 2. Latest Scraped Listings From The Last 24 Hours
 
@@ -96,6 +103,9 @@ Each listing has:
 
 ```ts
 category: "new_listing"
+price_usd: number | null
+previous_price_usd: number | null
+change_amount_usd: number | null
 images: string[] // generated CloudFront URLs
 ```
 
@@ -107,6 +117,8 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/listings/latest-scraped?limit=50&offset=5
 ```
 
 ### 3. Latest Price Drops From The Last 24 Hours
+
+Only includes listings discounted by more than 8%.
 
 ```http
 GET /api/listings/price-drops?limit=50
@@ -121,6 +133,9 @@ Each listing has:
 
 ```ts
 category: "price_drop"
+price_usd: number | null
+previous_price_usd: number | null
+change_amount_usd: number | null
 images: string[] // generated CloudFront URLs
 previous_price
 change_amount
@@ -134,24 +149,72 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/listings/price-drops?limit=50&offset=50" 
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 4. Favorite Listings For A User
+### 4. Listing Price Per Sq Ft And Nearby Comparables
 
-Returns the same feed-style listing schema, with `category: "favorite"` and favorite-specific metadata.
+Returns the listing's converted price per sq ft plus comparable price per sq ft summaries inside 1 km and 2 km. The `currency` parameter defaults to `USD` and must exist in the `exchange_rates` table.
+
+```http
+GET /api/listings/LISTING_ID/price-per-sqft?currency=USD
+```
+
+```bash
+curl -s "$NIPPONHOMES_API_BASE_URL/api/listings/LISTING_ID/price-per-sqft?currency=USD" \
+  -H "x-api-key: $NIPPONHOMES_API_KEY"
+```
+
+Each response has:
+
+```ts
+listing: {
+  listing_id: string
+  title: string | null
+  listing_type: string | null
+  listing_type_en: string | null
+  price_jpy: number
+  price: number
+  currency: string
+  effective_size_sqm: number
+  effective_size_sqft: number
+  price_per_sqft_jpy: number
+  price_per_sqft: number
+}
+comparables: Array<{
+  radius_km: 1 | 2
+  count: number
+  active_count: number
+  avg_price_per_sqft: number | null
+  median_price_per_sqft: number | null
+  min_price_per_sqft: number | null
+  max_price_per_sqft: number | null
+}>
+```
+
+Unsupported currency example:
+
+```json
+{
+  "error": "Unsupported currency: XYZ",
+  "detail": "Requested currency must exist in the exchange_rates table."
+}
+```
+
+### 5. Favorite Listings For A User UUID
+
+Returns the user's saved/favorited listings with the same listing feed fields. `event_at` is the favorite timestamp.
 
 ```http
 GET /api/listings/favorites/USER_UUID?limit=50
 ```
 
-```powershell
-Invoke-RestMethod `
-  -Uri "$env:NIPPONHOMES_API_BASE_URL/api/listings/favorites/USER_UUID?limit=50" `
-  -Headers @{ "x-api-key" = $env:NIPPONHOMES_API_KEY } |
-  ConvertTo-Json -Depth 10
+```bash
+curl -s "$NIPPONHOMES_API_BASE_URL/api/listings/favorites/USER_UUID?limit=50" \
+  -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-Each favorite listing has:
+Each listing has:
 
 ```ts
+listing_id: string
 category: "favorite"
 event_at: string
 saved_at: string
@@ -160,16 +223,17 @@ tags: string | null
 price_usd: number | null
 previous_price_usd: number | null
 change_amount_usd: number | null
-images: string[]
+images: string[] // generated CloudFront URLs
 ```
 
-The worker exposes this as a tool capability:
+Pagination:
 
-```shell
-ntn workers exec getNipponhomesFavorites --local -d '{"userUuid":"USER_UUID"}'
+```bash
+curl -s "$NIPPONHOMES_API_BASE_URL/api/listings/favorites/USER_UUID?limit=50&offset=50" \
+  -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 5. Aggregate Location Insights
+### 6. Aggregate Location Insights
 
 ```http
 GET /api/location-insights/by-location?lat=35.6895&lng=139.6917
@@ -180,7 +244,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/location-insights/by-location?lat=35.6895
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 6. Market Analytics By Location
+### 7. Market Analytics By Location
 
 ```http
 GET /api/analytics/by-location?lat=35.6895&lng=139.6917&listing_type=House
@@ -191,7 +255,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/analytics/by-location?lat=35.6895&lng=139
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 7. Market Analytics By JIS Code
+### 8. Market Analytics By JIS Code
 
 ```http
 GET /api/analytics/by-jis?jis_code=13104
@@ -202,7 +266,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/analytics/by-jis?jis_code=13104" \
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 8. Market Analytics Map Overlay
+### 9. Market Analytics Map Overlay
 
 ```http
 GET /api/analytics/ordinance?minLat=35.60&maxLat=35.75&minLng=139.60&maxLng=139.85
@@ -213,7 +277,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/analytics/ordinance?minLat=35.60&maxLat=3
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 9. Airbnb Market By Location
+### 10. Airbnb Market By Location
 
 ```http
 GET /api/airbnb-insights/markets/by-location?lat=35.6895&lng=139.6917
@@ -224,7 +288,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/airbnb-insights/markets/by-location?lat=3
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 10. Airbnb Market Map Overlay
+### 11. Airbnb Market Map Overlay
 
 ```http
 GET /api/airbnb-insights/markets?minLat=35.60&maxLat=35.75&minLng=139.60&maxLng=139.85
@@ -235,7 +299,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/airbnb-insights/markets?minLat=35.60&maxL
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 11. Market Comparables
+### 12. Market Comparables
 
 ```http
 GET /api/comparables?listingId=LISTING_ID
@@ -248,7 +312,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/comparables?listingId=LISTING_ID" \
 
 ## Already Protected By The Same Partner API Key
 
-### 12. Listing Details
+### 13. Listing Details
 
 ```http
 GET /api/listings/LISTING_ID
@@ -259,7 +323,7 @@ curl -s "$NIPPONHOMES_API_BASE_URL/api/listings/LISTING_ID" \
   -H "x-api-key: $NIPPONHOMES_API_KEY"
 ```
 
-### 13. Nearby Listings
+### 14. Nearby Listings
 
 ```http
 GET /api/listings/nearby?lat=35.6895&lng=139.6917&limit=20
